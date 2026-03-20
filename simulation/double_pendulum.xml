@@ -1,0 +1,68 @@
+<mujoco model="wall_mounted_double_pendulum">
+  <compiler angle="degree" inertiafromgeom="true" autolimits="true"/>
+
+  <option gravity="0 0 -9.81" timestep="0.002" integrator="RK4"/>
+
+  <default>
+    <joint type="hinge" axis="1 0 0" damping="0.05" armature="0.001" limited="true" range="-179 179"/>
+    <geom type="capsule" size="0.015" density="850" friction="0.6 0.02 0.02" rgba="0.2 0.2 0.25 1"/>
+    <motor ctrllimited="true"/>
+    <site size="0.01" rgba="0.9 0.2 0.2 1"/>
+  </default>
+
+  <worldbody>
+    <light name="main_light" pos="1.0 -1.0 2.0" dir="-0.3 0.2 -1" diffuse="0.9 0.9 0.9" specular="0.2 0.2 0.2"/>
+
+    <geom name="wall" type="box" pos="-0.01 0 0.45" size="0.01 0.45 0.55" rgba="0.82 0.84 0.88 1"/>
+    <geom name="clock_face" type="cylinder" pos="0.004 0 0.72" quat="0.707107 0 0.707107 0" size="0.32 0.003" rgba="0.97 0.96 0.9 1" contype="0" conaffinity="0"/>
+    <geom name="clock_rim" type="cylinder" pos="0.005 0 0.72" quat="0.707107 0 0.707107 0" size="0.325 0.002" rgba="0.72 0.58 0.24 1" contype="0" conaffinity="0"/>
+    <geom name="clock_hub" type="cylinder" pos="0.006 0 0.72" quat="0.707107 0 0.707107 0" size="0.03 0.004" rgba="0.72 0.58 0.24 1" contype="0" conaffinity="0"/>
+    <geom name="tick_12" type="sphere" pos="0.007 0.0000 1.0200" size="0.014" rgba="0.16 0.16 0.18 1" contype="0" conaffinity="0"/>
+    <geom name="tick_1" type="sphere" pos="0.007 0.1500 0.9798" size="0.009" rgba="0.28 0.28 0.3 1" contype="0" conaffinity="0"/>
+    <geom name="tick_2" type="sphere" pos="0.007 0.2598 0.8700" size="0.009" rgba="0.28 0.28 0.3 1" contype="0" conaffinity="0"/>
+    <geom name="tick_3" type="sphere" pos="0.007 0.3000 0.7200" size="0.014" rgba="0.16 0.16 0.18 1" contype="0" conaffinity="0"/>
+    <geom name="tick_4" type="sphere" pos="0.007 0.2598 0.5700" size="0.009" rgba="0.28 0.28 0.3 1" contype="0" conaffinity="0"/>
+    <geom name="tick_5" type="sphere" pos="0.007 0.1500 0.4602" size="0.009" rgba="0.28 0.28 0.3 1" contype="0" conaffinity="0"/>
+    <geom name="tick_6" type="sphere" pos="0.007 0.0000 0.4200" size="0.014" rgba="0.16 0.16 0.18 1" contype="0" conaffinity="0"/>
+    <geom name="tick_7" type="sphere" pos="0.007 -0.1500 0.4602" size="0.009" rgba="0.28 0.28 0.3 1" contype="0" conaffinity="0"/>
+    <geom name="tick_8" type="sphere" pos="0.007 -0.2598 0.5700" size="0.009" rgba="0.28 0.28 0.3 1" contype="0" conaffinity="0"/>
+    <geom name="tick_9" type="sphere" pos="0.007 -0.3000 0.7200" size="0.014" rgba="0.16 0.16 0.18 1" contype="0" conaffinity="0"/>
+    <geom name="tick_10" type="sphere" pos="0.007 -0.2598 0.8700" size="0.009" rgba="0.28 0.28 0.3 1" contype="0" conaffinity="0"/>
+    <geom name="tick_11" type="sphere" pos="0.007 -0.1500 0.9798" size="0.009" rgba="0.28 0.28 0.3 1" contype="0" conaffinity="0"/>
+    <geom name="mount" type="box" pos="0.01 0 0.72" size="0.02 0.03 0.03" rgba="0.45 0.33 0.2 1"/>
+
+    <body name="link1" pos="0.03 0 0.72">
+      <joint name="shoulder"/>
+      <geom name="hour_hand_shaft" type="box" pos="0 0 -0.1200" size="0.012 0.008 0.1200" density="700" rgba="0.12 0.12 0.14 1"/>
+      <geom name="hour_hand_tip" type="box" pos="0 0 -0.3050" size="0.006 0.004 0.045" density="700" rgba="0.12 0.12 0.14 1"/>
+      <!-- <geom name="hour_hand_counterweight" type="cylinder" pos="0 0 0.035" quat="0.707107 0 0.707107 0" size="0.022 0.005" density="700" rgba="0.72 0.58 0.24 1"/> -->
+      <site name="elbow_anchor" pos="0 0 -0.3500"/>
+
+      <body name="link2" pos="0 0 -0.3500">
+        <joint name="elbow"/>
+        <geom name="minute_hand_shaft" type="box" pos="0 0 -0.1100" size="0.009 0.005 0.1100" density="600" rgba="0.8 0.8 0.82 1"/>
+        <geom name="minute_hand_tip" type="box" pos="0 0 -0.2700" size="0.004 0.0025 0.030" density="600" rgba="0.8 0.8 0.82 1"/>
+        <!-- <geom name="minute_hand_counterweight" type="cylinder" pos="0 0 0.028" quat="0.707107 0 0.707107 0" size="0.016 0.0035" density="600" rgba="0.72 0.58 0.24 1"/> -->
+        <site name="tip" pos="0 0 -0.3000"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="shoulder_torque" joint="shoulder" gear="1" ctrlrange="-8 8"/>
+    <motor name="elbow_torque" joint="elbow" gear="1" ctrlrange="-4 4"/>
+  </actuator>
+
+  <sensor>
+    <jointpos name="shoulder_pos" joint="shoulder"/>
+    <jointvel name="shoulder_vel" joint="shoulder"/>
+    <jointpos name="elbow_pos" joint="elbow"/>
+    <jointvel name="elbow_vel" joint="elbow"/>
+    <actuatorfrc name="shoulder_torque_sensor" actuator="shoulder_torque"/>
+    <actuatorfrc name="elbow_torque_sensor" actuator="elbow_torque"/>
+  </sensor>
+
+  <keyframe>
+    <key name="hanging" qpos="0 0" ctrl="0 0"/>
+  </keyframe>
+</mujoco>
