@@ -1,0 +1,1 @@
+This is where any documentation for the project should go. You can use Markdown syntax to format the text, add images, links, and more. We should document design decisions, how to use the project, and any other relevant information that would help everyone understand and contribute to the project.
