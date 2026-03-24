@@ -26,6 +26,8 @@ This is a slightly odd design problem because we have largely settled on the for
 
 - Fits within ____
 - Moves within ____ mm of defined position within ____ seconds
+- Enters into chaotic motion within ____ seconds of trigger
+- Exits chaotic motion and returns to controlled position within ____ seconds of trigger
 - Senses user presence within ____ distance
 - Reacts to user presence within ____ seconds
 
