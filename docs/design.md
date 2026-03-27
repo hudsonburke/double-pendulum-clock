@@ -60,6 +60,7 @@ This is a slightly odd design problem because we have largely settled on the for
 - GPS-based
 - WiFi or Ethernet connection
 - RTC module w/ battery backup and manual time setting like DS3234
+- [Research Doc](https://docs.google.com/document/d/1Ugsa2n1ORUJYejVRIX3g0Py19Keq57nNqj4PwvI38Ho/edit?usp=sharing)
 
 ### Microcontroller
 
