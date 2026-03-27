@@ -38,7 +38,7 @@ This is a slightly odd design problem because we have largely settled on the for
 ### Control Mechanism
 
 - Background xy axes for positioning
-- Magnetic coupling for controlling the pendulum arms without physical contact
+- Magnetic coupling ([Link 1](https://www.youtube.com/watch?v=n9tZIFfM14o), [Link 2](https://www.youtube.com/watch?v=RhsseDnMZHY)) for controlling the pendulum arms without physical contact
 - Central motors with belts and pulleys to directly control the arms
 - Clutch mechanism to decouple motors from arms for chaotic motion
 
