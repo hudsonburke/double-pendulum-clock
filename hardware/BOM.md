@@ -1,2 +1,2 @@
 ### Here is a link to the google sheet for the BOM
-[LINK](https://myuva-my.sharepoint.com/:x:/r/personal/gdq9va_virginia_edu/Documents/BOM%203-27.xlsx?d=w48c3a088794e4756b606b5352feb200c&csf=1&web=1&e=LsQwfo)
+[LINK](https://docs.google.com/spreadsheets/d/1xL1vEea_saK99in2sAQrCJL0g_R8Aj5Z5nwMYhnc7wY/edit?usp=sharing)
