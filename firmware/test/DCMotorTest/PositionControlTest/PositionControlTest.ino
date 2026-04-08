@@ -5,8 +5,10 @@
   //Stop at South (180°) → stay 3 sec
   //Stop at West (270°) → stay 3 sec
 //Other angles → pass through without stopping )
-// Teensy +  DRV8313 (Moto rdriver) +  AS5600 encoder (BLDC Motor)
+// Arduino UNO R3 +  DRV8313 (Moto rdriver) +  AS5600 encoder (BLDC Motor)
 // Use the Simple FOC library
+  // Connect DRV8313 to Arduino UNO: PWM pin 9 10 11, and enable 8
+  // Connect AS5600 to Arduino UNO (I2C):SDA→A4, SCL→A5, VCC→5V, GND→GND
 
 
 #include <SimpleFOC.h>
