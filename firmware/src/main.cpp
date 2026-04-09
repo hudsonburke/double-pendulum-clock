@@ -258,6 +258,7 @@ void loop() {
       break;
     }
     case POSITION:
+      motor1.move(target_angle);
       motor1.loopFOC();
       break;
     case FREE_SWING_SUSTAIN:
