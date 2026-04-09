@@ -28,7 +28,7 @@ constexpr float cogging_gain = 0.15f;
 constexpr float cogging_deadband = 0.12f;
 constexpr float cogging_angle_threshold = 0.005f;
 constexpr unsigned long cogging_gate_window_ms = 50;
-bool cogging_debug_enabled = true;
+bool debug_enabled = true;
 constexpr unsigned long cogging_debug_interval_ms = 100;
 constexpr float voltage_limit_position    = 4.0f;
 constexpr float voltage_limit_freeswing   = 2.0f;
@@ -55,6 +55,7 @@ void switchToPosition();
 void switchToFreeSwing();
 void toggleSustain();
 float computeAnticogging(float current_angle, bool in_motion);
+void printTelemetry(float angle, float comp, float sustain_v);
 
 
 void setup() {
@@ -120,10 +121,10 @@ void processSerialInput() {
             saveCoggingMap();
             while (Serial.available()) Serial.read();
             break;
-          case 'd':
-            cogging_debug_enabled = !cogging_debug_enabled;
-            Serial.printf("[DEBUG] %s\n", cogging_debug_enabled ? "ON" : "OFF");
-            break;
+           case 'd':
+             debug_enabled = !debug_enabled;
+             Serial.printf("[DEBUG] %s\n", debug_enabled ? "ON" : "OFF");
+             break;
           case 't': {
             // Parse float from rest of buffer (after 't')
             float raw_target = 0.0f;
@@ -207,8 +208,24 @@ float computeAnticogging(float current_angle, bool in_motion) {
   return 0.0f;
 }
 
+void printTelemetry(float angle, float comp, float sustain_v) {
+  if (!debug_enabled) return;
+  unsigned long now = millis();
+  static unsigned long last_tel_ms = 0;
+  if (now - last_tel_ms < cogging_debug_interval_ms) return;
+  last_tel_ms = now;
+
+  const char* mode_str = "UNKNOWN";
+  switch (current_mode) {
+    case POSITION:           mode_str = "POSITION"; break;
+    case FREE_SWING:         mode_str = "FREE_SWING"; break;
+    case FREE_SWING_SUSTAIN: mode_str = "SUSTAIN"; break;
+  }
+  Serial.printf("[TEL] mode=%s angle=%.4f comp=%.4f sustain=%.4f\n",
+                mode_str, angle, comp, sustain_v);
+}
+
 void loop() {
-  static unsigned long last_cogging_debug_ms = 0;
   static float gate_prev_angle = 0.0f;
   static unsigned long gate_prev_ms = 0;
   static bool gate_initialized = false;
@@ -218,10 +235,15 @@ void loop() {
   sensor1.update();
   processSerialInput();
 
+  float comp = 0.0f;
+  float sustain_v = 0.0f;
+  float tel_angle = 0.0f;
+
   switch (current_mode) {
     case FREE_SWING: {
       float current_angle = fmod(sensor1.getAngle(), _2PI);
       if (current_angle < 0) current_angle += _2PI;
+      tel_angle = current_angle;
 
       unsigned long now_ms = millis();
       bool in_motion = false;
@@ -242,30 +264,21 @@ void loop() {
 
       in_motion = gate_in_motion;
 
-      float cogging_compensation = computeAnticogging(current_angle, in_motion);
+      comp = computeAnticogging(current_angle, in_motion);
 
-      if (cogging_debug_enabled) {
-        unsigned long now = millis();
-        if (now - last_cogging_debug_ms >= cogging_debug_interval_ms) {
-          last_cogging_debug_ms = now;
-          Serial.printf("[COG] angle=%.4f comp=%.4f motion=%d\n",
-                        current_angle,
-                        cogging_compensation,
-                        (int)in_motion);
-        }
-      }
-
-      motor1.move(cogging_compensation);
+      motor1.move(comp);
       motor1.loopFOC();
       break;
     }
     case POSITION:
+      tel_angle = sensor1.getAngle();
       motor1.move(target_angle);
       motor1.loopFOC();
       break;
     case FREE_SWING_SUSTAIN: {
       float current_angle = fmod(sensor1.getAngle(), _2PI);
       if (current_angle < 0) current_angle += _2PI;
+      tel_angle = current_angle;
 
       unsigned long now_ms = millis();
       bool in_motion = false;
@@ -285,19 +298,21 @@ void loop() {
       }
       in_motion = gate_in_motion;
 
-      float cogging_compensation = computeAnticogging(current_angle, in_motion);
+      comp = computeAnticogging(current_angle, in_motion);
 
-      float sustain_voltage = 0.0f;
+      sustain_v = 0.0f;
       if (in_motion) {
         float direction = (gate_last_delta >= 0.0f) ? 1.0f : -1.0f;
-        sustain_voltage = sustain_sign * direction * sustain_torque;
+        sustain_v = sustain_sign * direction * sustain_torque;
       }
 
-      motor1.move(cogging_compensation + sustain_voltage);
+      motor1.move(comp + sustain_v);
       motor1.loopFOC();
       break;
     }
   }
+
+  printTelemetry(tel_angle, comp, sustain_v);
 }
 
 void calibrateCogging() {
