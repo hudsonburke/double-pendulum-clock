@@ -28,7 +28,7 @@ constexpr float cogging_gain = 0.15f;
 constexpr float cogging_deadband = 0.12f;
 constexpr float cogging_angle_threshold = 0.005f;
 constexpr unsigned long cogging_gate_window_ms = 50;
-constexpr bool cogging_debug_enabled = true;
+bool cogging_debug_enabled = true;
 constexpr unsigned long cogging_debug_interval_ms = 100;
 constexpr float voltage_limit_position    = 4.0f;
 constexpr float voltage_limit_freeswing   = 2.0f;
@@ -50,6 +50,7 @@ void calibrateCogging();
 bool loadCoggingMap();
 bool saveCoggingMap();
 float mapMean();
+void processSerialInput();
 
 
 void setup() {
@@ -87,6 +88,70 @@ void setup() {
   } else {
     Serial.println("Loaded cogging map from NVS");
   }
+
+  Serial.println("[BOOT] Dual-mode controller ready. Commands: P F S T<angle> C D");
+}
+
+void processSerialInput() {
+  static char buf[32];
+  static int buf_len = 0;
+
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (buf_len > 0) {
+        char cmd = tolower(buf[0]);
+        switch (cmd) {
+          case 'p':
+            Serial.println("[MODE] POSITION");
+            break;
+          case 'f':
+            Serial.println("[MODE] FREE_SWING");
+            break;
+          case 's':
+            Serial.println("[MODE] SUSTAIN toggled");
+            break;
+          case 'c':
+            calibrateCogging();
+            saveCoggingMap();
+            while (Serial.available()) Serial.read();
+            break;
+          case 'd':
+            cogging_debug_enabled = !cogging_debug_enabled;
+            Serial.printf("[DEBUG] %s\n", cogging_debug_enabled ? "ON" : "OFF");
+            break;
+          case 't': {
+            // Parse float from rest of buffer (after 't')
+            float raw_target = 0.0f;
+            if (buf_len > 1) {
+              raw_target = atof(buf + 1);
+            }
+            // Clamp to [0, 2π)
+            raw_target = fmod(raw_target, _2PI);
+            if (raw_target < 0) raw_target += _2PI;
+            // Nearest-angle to current shaft angle
+            float current = sensor1.getAngle();
+            float base = current - fmod(current, _2PI);
+            if (fmod(current, _2PI) < 0) base -= _2PI;
+            float c1 = base + raw_target;
+            float c2 = c1 + _2PI;
+            float c3 = c1 - _2PI;
+            target_angle = c1;
+            if (fabsf(c2 - current) < fabsf(target_angle - current)) target_angle = c2;
+            if (fabsf(c3 - current) < fabsf(target_angle - current)) target_angle = c3;
+            Serial.printf("[TARGET] %.4f\n", target_angle);
+            break;
+          }
+          default:
+            break; // Ignore unknown
+        }
+        buf_len = 0;
+      }
+    } else if (buf_len < (int)sizeof(buf) - 1) {
+      buf[buf_len++] = c;
+      buf[buf_len] = '\0';
+    }
+  }
 }
 
 void loop() {
@@ -97,6 +162,7 @@ void loop() {
   static bool gate_in_motion = false;
 
   sensor1.update();
+  processSerialInput();
 
   switch (current_mode) {
     case FREE_SWING: {

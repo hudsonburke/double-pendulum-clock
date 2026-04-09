@@ -1,0 +1,41 @@
+53:void processSerialInput();
+95:void processSerialInput() {
+          case 't': {
+            // Parse float from rest of buffer (after 't')
+            float raw_target = 0.0f;
+            if (buf_len > 1) {
+              raw_target = atof(buf + 1);
+            }
+            // Clamp to [0, 2π)
+            raw_target = fmod(raw_target, _2PI);
+            if (raw_target < 0) raw_target += _2PI;
+            // Nearest-angle to current shaft angle
+            float current = sensor1.getAngle();
+            float base = current - fmod(current, _2PI);
+            if (fmod(current, _2PI) < 0) base -= _2PI;
+            float c1 = base + raw_target;
+            float c2 = c1 + _2PI;
+            float c3 = c1 - _2PI;
+            target_angle = c1;
+            if (fabsf(c2 - current) < fabsf(target_angle - current)) target_angle = c2;
+            if (fabsf(c3 - current) < fabsf(target_angle - current)) target_angle = c3;
+            Serial.printf("[TARGET] %.4f\n", target_angle);
+            break;
+
+=== Clamping logic ===
+            // Nearest-angle to current shaft angle
+            float current = sensor1.getAngle();
+            float base = current - fmod(current, _2PI);
+            if (fmod(current, _2PI) < 0) base -= _2PI;
+            float c1 = base + raw_target;
+            float c2 = c1 + _2PI;
+            float c3 = c1 - _2PI;
+            target_angle = c1;
+            if (fabsf(c2 - current) < fabsf(target_angle - current)) target_angle = c2;
+            if (fabsf(c3 - current) < fabsf(target_angle - current)) target_angle = c3;
+            Serial.printf("[TARGET] %.4f\n", target_angle);
+            break;
+          }
+          default:
+            break; // Ignore unknown
+        }

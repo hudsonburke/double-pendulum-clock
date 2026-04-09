@@ -1,0 +1,26 @@
+=== NEAREST-ANGLE CLAMPING LOGIC ===
+
+Location: processSerialInput() T command handler
+Lines: 128-145 in main.cpp
+
+Algorithm:
+1. Parse float from buffer using atof(buf + 1)
+2. Clamp raw_target to [0, 2π):
+   - raw_target = fmod(raw_target, _2PI)
+   - if (raw_target < 0) raw_target += _2PI
+3. Find current cumulative angle: current = sensor1.getAngle()
+4. Calculate base (current angle floor to previous 2π boundary):
+   - base = current - fmod(current, _2PI)
+   - if (fmod(current, _2PI) < 0) base -= _2PI
+5. Generate three candidate angles:
+   - c1 = base + raw_target (same revolution)
+   - c2 = c1 + _2PI (next revolution)
+   - c3 = c1 - _2PI (previous revolution)
+6. Select the candidate closest to current angle:
+   - target_angle = c1 initially
+   - if (fabsf(c2 - current) < fabsf(target_angle - current)) target_angle = c2
+   - if (fabsf(c3 - current) < fabsf(target_angle - current)) target_angle = c3
+7. Print confirmation: [TARGET] <target_angle>
+
+This ensures target_angle is in the same logical revolution as current angle,
+eliminating discontinuous jumps in motor control.
