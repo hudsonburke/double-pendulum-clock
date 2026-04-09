@@ -1,0 +1,61 @@
+Task 4 - Mode Transition Functions Evidence
+Generated: 2026-04-08
+
+=== switchToPosition() [lines 160-170] ===
+160: void switchToPosition() {
+161:   motor1.disable();
+162:   motor1.controller = MotionControlType::angle;
+163:   motor1.voltage_limit = voltage_limit_position;
+164:   motor1.PID_velocity.limit = voltage_limit_position;
+165:   motor1.enable();
+166:   target_angle = sensor1.getAngle();
+167:   current_mode = POSITION;
+168:   sustain_enabled = false;
+169:   Serial.println("[MODE] POSITION");
+170: }
+
+Transition pattern: disable() -> set controller -> set voltage_limit -> set PID_velocity.limit -> enable()
+Sets target_angle = sensor1.getAngle() so motor holds current position (no sudden jump)
+Clears sustain_enabled
+
+=== switchToFreeSwing() [lines 172-181] ===
+172: void switchToFreeSwing() {
+173:   motor1.disable();
+174:   motor1.controller = MotionControlType::torque;
+175:   motor1.torque_controller = TorqueControlType::voltage;
+176:   motor1.voltage_limit = voltage_limit_freeswing;
+177:   motor1.enable();
+178:   current_mode = FREE_SWING;
+179:   sustain_enabled = false;
+180:   Serial.println("[MODE] FREE_SWING");
+181: }
+
+Transition pattern: disable() -> set controller -> set torque_controller -> set voltage_limit -> enable()
+Clears sustain_enabled
+
+=== toggleSustain() [lines 183-194] ===
+183: void toggleSustain() {
+184:   if (current_mode == FREE_SWING || current_mode == FREE_SWING_SUSTAIN) {
+185:     sustain_enabled = !sustain_enabled;
+186:     current_mode = sustain_enabled ? FREE_SWING_SUSTAIN : FREE_SWING;
+187:     motor1.voltage_limit = sustain_enabled ? voltage_limit_sustain : voltage_limit_freeswing;
+188:     Serial.printf("[MODE] %s (sustain=%s)\n",
+189:       sustain_enabled ? "FREE_SWING_SUSTAIN" : "FREE_SWING",
+190:       sustain_enabled ? "ON" : "OFF");
+191:   } else {
+192:     Serial.println("[MODE] Sustain only available in FREE_SWING mode");
+193:   }
+194: }
+
+Guard: only toggles from FREE_SWING or FREE_SWING_SUSTAIN (not from POSITION)
+Toggles sustain_enabled, updates current_mode and voltage_limit accordingly
+
+=== Command wiring in processSerialInput() ===
+case 'p': switchToPosition(); break;
+case 'f': switchToFreeSwing(); break;
+case 's': toggleSustain(); break;
+
+=== Forward declarations added (lines 54-56) ===
+void switchToPosition();
+void switchToFreeSwing();
+void toggleSustain();

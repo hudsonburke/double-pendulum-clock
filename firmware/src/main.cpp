@@ -51,6 +51,9 @@ bool loadCoggingMap();
 bool saveCoggingMap();
 float mapMean();
 void processSerialInput();
+void switchToPosition();
+void switchToFreeSwing();
+void toggleSustain();
 
 
 void setup() {
@@ -103,13 +106,13 @@ void processSerialInput() {
         char cmd = tolower(buf[0]);
         switch (cmd) {
           case 'p':
-            Serial.println("[MODE] POSITION");
+            switchToPosition();
             break;
           case 'f':
-            Serial.println("[MODE] FREE_SWING");
+            switchToFreeSwing();
             break;
           case 's':
-            Serial.println("[MODE] SUSTAIN toggled");
+            toggleSustain();
             break;
           case 'c':
             calibrateCogging();
@@ -151,6 +154,42 @@ void processSerialInput() {
       buf[buf_len++] = c;
       buf[buf_len] = '\0';
     }
+  }
+}
+
+void switchToPosition() {
+  motor1.disable();
+  motor1.controller = MotionControlType::angle;
+  motor1.voltage_limit = voltage_limit_position;
+  motor1.PID_velocity.limit = voltage_limit_position;
+  motor1.enable();
+  target_angle = sensor1.getAngle();
+  current_mode = POSITION;
+  sustain_enabled = false;
+  Serial.println("[MODE] POSITION");
+}
+
+void switchToFreeSwing() {
+  motor1.disable();
+  motor1.controller = MotionControlType::torque;
+  motor1.torque_controller = TorqueControlType::voltage;
+  motor1.voltage_limit = voltage_limit_freeswing;
+  motor1.enable();
+  current_mode = FREE_SWING;
+  sustain_enabled = false;
+  Serial.println("[MODE] FREE_SWING");
+}
+
+void toggleSustain() {
+  if (current_mode == FREE_SWING || current_mode == FREE_SWING_SUSTAIN) {
+    sustain_enabled = !sustain_enabled;
+    current_mode = sustain_enabled ? FREE_SWING_SUSTAIN : FREE_SWING;
+    motor1.voltage_limit = sustain_enabled ? voltage_limit_sustain : voltage_limit_freeswing;
+    Serial.printf("[MODE] %s (sustain=%s)\n",
+      sustain_enabled ? "FREE_SWING_SUSTAIN" : "FREE_SWING",
+      sustain_enabled ? "ON" : "OFF");
+  } else {
+    Serial.println("[MODE] Sustain only available in FREE_SWING mode");
   }
 }
 

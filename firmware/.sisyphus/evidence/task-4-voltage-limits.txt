@@ -1,0 +1,31 @@
+Task 4 - Voltage Limits in Transition Functions Evidence
+Generated: 2026-04-08
+
+=== Constexpr voltage limit definitions (lines 33-36) ===
+constexpr float voltage_limit_position    = 4.0f;
+constexpr float voltage_limit_freeswing   = 2.0f;
+constexpr float voltage_limit_sustain     = 2.0f;
+constexpr float voltage_limit_calibration = 0.5f;
+
+=== switchToPosition() voltage limits ===
+motor1.voltage_limit = voltage_limit_position;       // 4.0f — higher limit for holding position
+motor1.PID_velocity.limit = voltage_limit_position;  // 4.0f — PID output cap matched to voltage_limit
+
+=== switchToFreeSwing() voltage limits ===
+motor1.voltage_limit = voltage_limit_freeswing;      // 2.0f — low limit for passive cogging compensation
+
+=== toggleSustain() voltage limits ===
+motor1.voltage_limit = sustain_enabled ? voltage_limit_sustain : voltage_limit_freeswing;
+  - When sustain ON:  voltage_limit_sustain   = 2.0f
+  - When sustain OFF: voltage_limit_freeswing = 2.0f
+  (Both 2.0f — identical value, but semantically separate for future tuning)
+
+=== calibrateCogging() voltage limits (UNCHANGED, for reference) ===
+motor1.voltage_limit = 0.5f;   // low during calibration sweep
+After calibration: motor1.voltage_limit = 2.0f;  // restored to freeswing level
+
+=== Summary ===
+POSITION mode:    4.0f (stronger hold, PID_velocity.limit also 4.0f)
+FREE_SWING mode:  2.0f (gentle cogging compensation)
+SUSTAIN mode:     2.0f (same as freeswing, room for future increase)
+CALIBRATION mode: 0.5f (minimal force to measure cogging torque)
