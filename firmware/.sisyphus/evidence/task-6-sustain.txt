@@ -1,0 +1,17 @@
+37:constexpr float sustain_torque = 0.3f;
+44:enum ControlMode { POSITION, FREE_SWING, FREE_SWING_SUSTAIN };
+57:float computeAnticogging(float current_angle, bool in_motion);
+185:  if (current_mode == FREE_SWING || current_mode == FREE_SWING_SUSTAIN) {
+187:    current_mode = sustain_enabled ? FREE_SWING_SUSTAIN : FREE_SWING;
+190:      sustain_enabled ? "FREE_SWING_SUSTAIN" : "FREE_SWING",
+197:float computeAnticogging(float current_angle, bool in_motion) {
+216:  static float gate_last_delta = 0.0f;
+237:        gate_last_delta = delta;
+245:      float cogging_compensation = computeAnticogging(current_angle, in_motion);
+266:    case FREE_SWING_SUSTAIN: {
+281:        gate_last_delta = delta;
+288:      float cogging_compensation = computeAnticogging(current_angle, in_motion);
+290:      float sustain_voltage = 0.0f;
+292:        float direction = (gate_last_delta >= 0.0f) ? 1.0f : -1.0f;
+293:        sustain_voltage = sustain_sign * direction * sustain_torque;
+296:      motor1.move(cogging_compensation + sustain_voltage);

@@ -1,0 +1,5 @@
+map_position occurrences: 4 (should be only inside computeAnticogging helper)
+computeAnticogging references: 4 (declaration + definition + 2 call sites = 4)
+  Line 198: float map_position = current_angle / _2PI * MAP_SIZE;
+  Line 199: int index0 = (int)map_position % MAP_SIZE;
+  Line 201: float fraction = map_position - (int)map_position;
