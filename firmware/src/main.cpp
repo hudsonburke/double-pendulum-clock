@@ -98,56 +98,67 @@ void loop() {
 
   sensor1.update();
 
-  float current_angle = fmod(sensor1.getAngle(), _2PI);
-  if (current_angle < 0) current_angle += _2PI;
+  switch (current_mode) {
+    case FREE_SWING: {
+      float current_angle = fmod(sensor1.getAngle(), _2PI);
+      if (current_angle < 0) current_angle += _2PI;
 
-  float map_position = current_angle / _2PI * MAP_SIZE;
-  int index0 = (int)map_position % MAP_SIZE;
-  int index1 = (index0 + 1) % MAP_SIZE;
-  float fraction = map_position - index0;
+      float map_position = current_angle / _2PI * MAP_SIZE;
+      int index0 = (int)map_position % MAP_SIZE;
+      int index1 = (index0 + 1) % MAP_SIZE;
+      float fraction = map_position - index0;
 
-  float map_value = calibration_map[index0] * (1.0f - fraction) +
-                    calibration_map[index1] * fraction;
+      float map_value = calibration_map[index0] * (1.0f - fraction) +
+                        calibration_map[index1] * fraction;
 
-  unsigned long now_ms = millis();
-  bool in_motion = false;
+      unsigned long now_ms = millis();
+      bool in_motion = false;
 
-  if (!gate_initialized) {
-    gate_prev_angle = current_angle;
-    gate_prev_ms = now_ms;
-    gate_initialized = true;
-  } else if (now_ms - gate_prev_ms >= cogging_gate_window_ms) {
-    float delta = current_angle - gate_prev_angle;
-    if (delta > _PI) delta -= _2PI;
-    if (delta < -_PI) delta += _2PI;
+      if (!gate_initialized) {
+        gate_prev_angle = current_angle;
+        gate_prev_ms = now_ms;
+        gate_initialized = true;
+      } else if (now_ms - gate_prev_ms >= cogging_gate_window_ms) {
+        float delta = current_angle - gate_prev_angle;
+        if (delta > _PI) delta -= _2PI;
+        if (delta < -_PI) delta += _2PI;
 
-    gate_in_motion = fabsf(delta) >= cogging_angle_threshold;
+        gate_in_motion = fabsf(delta) >= cogging_angle_threshold;
 
-    gate_prev_angle = current_angle;
-    gate_prev_ms = now_ms;
-  }
+        gate_prev_angle = current_angle;
+        gate_prev_ms = now_ms;
+      }
 
-  in_motion = gate_in_motion;
+      in_motion = gate_in_motion;
 
-  float cogging_compensation = 0.0f;
-  if (in_motion && fabsf(map_value) >= cogging_deadband) {
-    cogging_compensation = -map_value * cogging_gain;
-  }
+      float cogging_compensation = 0.0f;
+      if (in_motion && fabsf(map_value) >= cogging_deadband) {
+        cogging_compensation = -map_value * cogging_gain;
+      }
 
-  if (cogging_debug_enabled) {
-    unsigned long now = millis();
-    if (now - last_cogging_debug_ms >= cogging_debug_interval_ms) {
-      last_cogging_debug_ms = now;
-      Serial.printf("[COG] angle=%.4f map=%.4f comp=%.4f motion=%d\n",
-                    current_angle,
-                    map_value,
-                    cogging_compensation,
-                    (int)in_motion);
+      if (cogging_debug_enabled) {
+        unsigned long now = millis();
+        if (now - last_cogging_debug_ms >= cogging_debug_interval_ms) {
+          last_cogging_debug_ms = now;
+          Serial.printf("[COG] angle=%.4f map=%.4f comp=%.4f motion=%d\n",
+                        current_angle,
+                        map_value,
+                        cogging_compensation,
+                        (int)in_motion);
+        }
+      }
+
+      motor1.move(cogging_compensation);
+      motor1.loopFOC();
+      break;
     }
+    case POSITION:
+      motor1.loopFOC();
+      break;
+    case FREE_SWING_SUSTAIN:
+      motor1.loopFOC();
+      break;
   }
-
-  motor1.move(cogging_compensation);
-  motor1.loopFOC();
 }
 
 void calibrateCogging() {

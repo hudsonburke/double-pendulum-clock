@@ -1,0 +1,15 @@
+158:    case FREE_SWING_SUSTAIN:
+void loop() {
+  static unsigned long last_cogging_debug_ms = 0;
+  static float gate_prev_angle = 0.0f;
+  static unsigned long gate_prev_ms = 0;
+  static bool gate_initialized = false;
+  static bool gate_in_motion = false;
+
+  sensor1.update();
+
+  switch (current_mode) {
+    case FREE_SWING: {
+      float current_angle = fmod(sensor1.getAngle(), _2PI);
+      if (current_angle < 0) current_angle += _2PI;
+
