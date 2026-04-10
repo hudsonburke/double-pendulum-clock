@@ -1,0 +1,38 @@
+UNIFIED TELEMETRY VERIFICATION
+===============================
+
+1. Variable Flow Through Loop Cases:
+
+   FREE_SWING:
+   - tel_angle = current_angle (line 246)
+   - comp = computeAnticogging(current_angle, in_motion) (line 263)
+   - sustain_v remains 0.0f (default)
+   - Output: [TEL] mode=FREE_SWING angle=<tel_angle> comp=<comp> sustain=0.0000
+
+   POSITION:
+   - tel_angle = sensor1.getAngle() (line 274)
+   - comp remains 0.0f (default)
+   - sustain_v remains 0.0f (default)
+   - Output: [TEL] mode=POSITION angle=<tel_angle> comp=0.0000 sustain=0.0000
+
+   FREE_SWING_SUSTAIN:
+   - tel_angle = current_angle (line 281)
+   - comp = computeAnticogging(current_angle, in_motion) (line 300)
+   - sustain_v = computed value when in_motion (lines 303-306)
+   - Output: [TEL] mode=SUSTAIN angle=<tel_angle> comp=<comp> sustain=<sustain_v>
+
+2. printTelemetry() called after switch (line 315):
+   - printTelemetry(tel_angle, comp, sustain_v);
+   - Executes for ALL modes uniformly
+   - Respects debug_enabled flag
+   - Rate-limited to 100ms intervals (cogging_debug_interval_ms)
+
+3. Mode String Mapping:
+   - POSITION -> "POSITION"
+   - FREE_SWING -> "FREE_SWING"
+   - FREE_SWING_SUSTAIN -> "SUSTAIN"
+
+4. Build Status:
+   - SUCCESS: Zero errors, zero warnings
+   - No [COG] strings in output
+   - No cogging_debug_enabled references

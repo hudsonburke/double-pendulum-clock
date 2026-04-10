@@ -3,37 +3,38 @@
 #include <Preferences.h>
 Preferences prefs;
 
+bool debug_enabled = true;
 
-#define M1_PWM1 D10
-#define M1_PWM2 D9
-#define M1_PWM3 D8
+#if defined(ARDUINO_ARCH_ESP32) //TODO if we are going to switch microcontroller
+#endif
+constexpr int M1_PWM1 = D10;
+constexpr int M1_PWM2 = D9;
+constexpr int M1_PWM3 = D8;
 
-#define M1_EN D7
-#define M1_PP 11
-#define S1_SCL D1
-#define S1_SDA D0
+constexpr int M1_EN = D7;
 
-// #define M2_PWM1 11
-// #define M2_PWM2 12
-// #define M2_PWM3 13
-// #define M2_EN 14
+constexpr int S1_SCL = D1;
+constexpr int S1_SDA = D0;
 
+constexpr int M1_PP = 11; // Pole pairs
+constexpr float power_supply_voltage = 12.0f;
 
-#define MAP_SIZE 1024
-const int settle_cycles = 250;
-const int sample_cycles = 80;
+constexpr int MAP_SIZE = 256;
 float calibration_map[MAP_SIZE];
+constexpr int settle_cycles = 250;
+constexpr int sample_cycles = 80;
 
 constexpr float cogging_gain = 0.15f;
 constexpr float cogging_deadband = 0.12f;
 constexpr float cogging_angle_threshold = 0.005f;
 constexpr unsigned long cogging_gate_window_ms = 50;
-bool debug_enabled = true;
 constexpr unsigned long cogging_debug_interval_ms = 100;
+
 constexpr float voltage_limit_position    = 4.0f;
 constexpr float voltage_limit_freeswing   = 2.0f;
+constexpr float voltage_limit_calibration = 2.0f;
 constexpr float voltage_limit_sustain     = 2.0f;
-constexpr float voltage_limit_calibration = 0.5f;
+
 constexpr float sustain_torque = 0.3f;
 constexpr float sustain_sign   = 1.0f;
 
@@ -68,15 +69,13 @@ void setup() {
 
   sensor1.init();
 
-  driver1.voltage_power_supply = 12;
-  // driver1.voltage_limit = 12;
+  driver1.voltage_power_supply = power_supply_voltage;
   driver1.init();
   
   motor1.linkSensor(&sensor1);
   motor1.linkDriver(&driver1);
   motor1.controller = MotionControlType::torque;
   motor1.torque_controller = TorqueControlType::voltage;
-  motor1.voltage_limit = 2.0f;
   motor1.init();
   motor1.initFOC();
 
@@ -238,7 +237,8 @@ void loop() {
   float comp = 0.0f;
   float sustain_v = 0.0f;
   float tel_angle = 0.0f;
-
+  
+  motor1.loopFOC();
   switch (current_mode) {
     case FREE_SWING: {
       float current_angle = fmod(sensor1.getAngle(), _2PI);
@@ -267,13 +267,11 @@ void loop() {
       comp = computeAnticogging(current_angle, in_motion);
 
       motor1.move(comp);
-      motor1.loopFOC();
       break;
     }
     case POSITION:
       tel_angle = sensor1.getAngle();
       motor1.move(target_angle);
-      motor1.loopFOC();
       break;
     case FREE_SWING_SUSTAIN: {
       float current_angle = fmod(sensor1.getAngle(), _2PI);
@@ -307,7 +305,6 @@ void loop() {
       }
 
       motor1.move(comp + sustain_v);
-      motor1.loopFOC();
       break;
     }
   }
@@ -317,7 +314,7 @@ void loop() {
 
 void calibrateCogging() {
   motor1.controller = MotionControlType::angle;
-  motor1.voltage_limit = 0.5f;
+  motor1.voltage_limit = voltage_limit_calibration;
 
   for (int i = 0; i < MAP_SIZE; i++) {
     calibration_map[i] = 0.0f;
@@ -329,7 +326,6 @@ void calibrateCogging() {
     for (int s = 0; s < settle_cycles; s++) {
       motor1.move(angle);
       motor1.loopFOC();
-      delayMicroseconds(300);
     }
 
     float accum = 0.0f;
@@ -337,7 +333,6 @@ void calibrateCogging() {
       motor1.move(angle);
       motor1.loopFOC();
       accum += motor1.voltage.q;
-      delayMicroseconds(300);
     }
 
     // Use mean measurement
@@ -353,10 +348,6 @@ void calibrateCogging() {
   for (int i = 0; i < MAP_SIZE; i++) {
     calibration_map[i] -= mean;
   }
-
-  motor1.controller = MotionControlType::torque;
-  motor1.torque_controller = TorqueControlType::voltage;
-  motor1.voltage_limit = 2.0f;
   Serial.println("Calibration complete");
 }
 

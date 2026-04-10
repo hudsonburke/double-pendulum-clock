@@ -1,0 +1,27 @@
+FORMATTING VERIFICATION
+=======================
+
+1. debug_enabled rename verification:
+   - Renamed all 3 occurrences of cogging_debug_enabled
+   - Line 31: bool debug_enabled = true;
+   - Line 125-126: Debug toggle case updated
+   - Line 212: Used in printTelemetry guard
+
+2. last_cogging_debug_ms removal:
+   - REMOVED static unsigned long last_cogging_debug_ms = 0; from loop()
+   - Replaced with printTelemetry() using static local last_tel_ms
+
+3. Local variables in loop():
+   - float comp = 0.0f; (line 238)
+   - float sustain_v = 0.0f; (line 239)
+   - float tel_angle = 0.0f; (line 240)
+
+4. [COG] debug block removal:
+   - REMOVED entire [COG] inline debug block from FREE_SWING case
+   - Replaced with captured comp and tel_angle values
+
+5. Mode-aware telemetry function:
+   - printTelemetry() at lines 211-226
+   - Outputs: [TEL] mode=<MODE> angle=<angle> comp=<comp> sustain=<sustain_v>
+   - Uses debug_enabled flag and rate limiting (100ms interval)
+   - Static local tracking: last_tel_ms

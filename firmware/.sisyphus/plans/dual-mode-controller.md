@@ -332,7 +332,7 @@ Wave FINAL (After ALL tasks - 4 parallel reviews):
   - Files: `src/main.cpp`
   - Pre-commit: `pio run`
 
-- [ ] 3. Implement serial command parser
+- [x] 3. Implement serial command parser
 
   **What to do**:
   - Add a `processSerialInput()` function that reads serial input and dispatches commands
@@ -432,7 +432,7 @@ Wave FINAL (After ALL tasks - 4 parallel reviews):
   - Files: `src/main.cpp`
   - Pre-commit: `pio run`
 
-- [ ] 4. Implement safe mode transition functions
+- [x] 4. Implement safe mode transition functions
 
   **What to do**:
   - Add three mode transition functions:
@@ -567,7 +567,7 @@ Wave FINAL (After ALL tasks - 4 parallel reviews):
   - Files: `src/main.cpp`
   - Pre-commit: `pio run`
 
-- [ ] 5. Implement POSITION mode loop body
+- [x] 5. Implement POSITION mode loop body
 
   **What to do**:
   - Fill in the POSITION case in the loop() switch statement:
@@ -674,7 +674,7 @@ Wave FINAL (After ALL tasks - 4 parallel reviews):
   - Files: `src/main.cpp`
   - Pre-commit: `pio run`
 
-- [ ] 6. Implement SUSTAIN mode
+- [x] 6. Implement SUSTAIN mode
 
   **What to do**:
   - Fill in the FREE_SWING_SUSTAIN case in the loop() switch statement
@@ -788,7 +788,7 @@ Wave FINAL (After ALL tasks - 4 parallel reviews):
   - Files: `src/main.cpp`
   - Pre-commit: `pio run`
 
-- [ ] 7. Add unified telemetry
+- [x] 7. Add unified telemetry
 
   **What to do**:
   - Replace the existing `[COG]` debug output (currently in FREE_SWING case) with a unified telemetry system that works across all modes

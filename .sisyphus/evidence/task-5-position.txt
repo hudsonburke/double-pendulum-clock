@@ -1,0 +1,3 @@
+    case POSITION:
+      motor1.move(target_angle);
+      motor1.loopFOC();

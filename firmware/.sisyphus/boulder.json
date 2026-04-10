@@ -2,11 +2,19 @@
   "active_plan": "/home/hudson/double-pendulum-clock/firmware/.sisyphus/plans/dual-mode-controller.md",
   "started_at": "2026-04-09T01:53:32.707Z",
   "session_ids": [
-    "ses_2908fe27bffeUA6P7DkmW9Nbf8"
+    "ses_2908fe27bffeUA6P7DkmW9Nbf8",
+    "ses_28fd9f727ffehMFlGqeJwkkxm7",
+    "ses_28fd988f3ffed0ExNYc8N3fgBR",
+    "ses_28fd90291ffewptqYS5Q09RHxu",
+    "ses_28fd868b0ffeYi4rJHgfr3kxDa"
   ],
   "plan_name": "dual-mode-controller",
   "session_origins": {
-    "ses_2908fe27bffeUA6P7DkmW9Nbf8": "direct"
+    "ses_2908fe27bffeUA6P7DkmW9Nbf8": "direct",
+    "ses_28fd9f727ffehMFlGqeJwkkxm7": "appended",
+    "ses_28fd988f3ffed0ExNYc8N3fgBR": "appended",
+    "ses_28fd90291ffewptqYS5Q09RHxu": "appended",
+    "ses_28fd868b0ffeYi4rJHgfr3kxDa": "appended"
   },
   "task_sessions": {
     "todo:1": {
@@ -26,6 +34,60 @@
       "agent": "Sisyphus-Junior",
       "category": "quick",
       "updated_at": "2026-04-09T02:00:03.206Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Implement serial command parser",
+      "session_id": "ses_29007065bffemmqhehX9npAMTP",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-09T02:02:31.583Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Implement safe mode transition functions",
+      "session_id": "ses_29004e8f1ffe62tZi7F1YJON4h",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-09T02:06:35.742Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Implement POSITION mode loop body",
+      "session_id": "ses_2900116c3ffebHVIsFXgqI2YOu",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-09T02:08:19.449Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Implement SUSTAIN mode",
+      "session_id": "ses_28fff7726ffeiGMDdT5QjyvfBj",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-09T02:12:02.386Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "Add unified telemetry",
+      "session_id": "ses_28ffc2059ffeUe5OPwcDjclZgO",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-09T02:15:11.923Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** - `oracle`",
+      "session_id": "ses_28fd868b0ffeYi4rJHgfr3kxDa",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-09T02:53:46.786Z"
     }
   }
 }
