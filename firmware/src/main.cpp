@@ -19,7 +19,7 @@ constexpr int S1_SDA = D0;
 constexpr int M1_PP = 11; // Pole pairs
 constexpr float power_supply_voltage = 12.0f;
 
-constexpr int MAP_SIZE = 256;
+constexpr int MAP_SIZE = 1024;
 float calibration_map[MAP_SIZE];
 constexpr int settle_cycles = 250;
 constexpr int sample_cycles = 80;
@@ -32,13 +32,14 @@ constexpr unsigned long cogging_debug_interval_ms = 100;
 
 constexpr float voltage_limit_position    = 4.0f;
 constexpr float voltage_limit_freeswing   = 2.0f;
-constexpr float voltage_limit_calibration = 2.0f;
+constexpr float voltage_limit_calibration = 1.0f;
 constexpr float voltage_limit_sustain     = 2.0f;
 
 constexpr float sustain_torque = 0.3f;
 constexpr float sustain_sign   = 1.0f;
 
 BLDCMotor motor1 = BLDCMotor(M1_PP);
+
 BLDCDriver3PWM driver1 = BLDCDriver3PWM(M1_PWM1, M1_PWM2, M1_PWM3, M1_EN);
 MagneticSensorI2C sensor1 = MagneticSensorI2C(AS5600_I2C);
 
