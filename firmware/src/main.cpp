@@ -1,415 +1,213 @@
 #include <Arduino.h>
+#include <SPI.h>
 #include <SimpleFOC.h>
-#include <Preferences.h>
-Preferences prefs;
+#include <SimpleFOCDrivers.h>
+#include <encoders/mt6701/MagneticSensorMT6701SSI.h>
 
-bool debug_enabled = true;
+#include "pins.h"
 
-#if defined(ARDUINO_ARCH_ESP32) //TODO if we are going to switch microcontroller
-#endif
-constexpr int M1_PWM1 = D10;
-constexpr int M1_PWM2 = D9;
-constexpr int M1_PWM3 = D8;
+#define DEBUG_ENABLED false
 
-constexpr int M1_EN = D7;
-
-constexpr int S1_SCL = D1;
-constexpr int S1_SDA = D0;
-
-constexpr int M1_PP = 11; // Pole pairs
+constexpr int M1_PP = 11;  // Pole pairs
+constexpr int M2_PP = 11;  // Pole pairs
 constexpr float power_supply_voltage = 12.0f;
 
-constexpr int MAP_SIZE = 1024;
-float calibration_map[MAP_SIZE];
-constexpr int settle_cycles = 250;
-constexpr int sample_cycles = 80;
+enum ControlMode {
+  DISABLED,
+  COMPENSATION_ONLY,
+  MINUTE_HAND_POSITION,
+  HOUR_HAND_POSITION
+};
 
-constexpr float cogging_gain = 0.15f;
-constexpr float cogging_deadband = 0.12f;
-constexpr float cogging_angle_threshold = 0.005f;
-constexpr unsigned long cogging_gate_window_ms = 50;
-constexpr unsigned long cogging_debug_interval_ms = 100;
-
-constexpr float voltage_limit_position    = 4.0f;
-constexpr float voltage_limit_freeswing   = 2.0f;
-constexpr float voltage_limit_calibration = 1.0f;
-constexpr float voltage_limit_sustain     = 2.0f;
-
-constexpr float sustain_torque = 0.3f;
-constexpr float sustain_sign   = 1.0f;
-
+// Motor 1 = Hour hand
 BLDCMotor motor1 = BLDCMotor(M1_PP);
-
 BLDCDriver3PWM driver1 = BLDCDriver3PWM(M1_PWM1, M1_PWM2, M1_PWM3, M1_EN);
 MagneticSensorI2C sensor1 = MagneticSensorI2C(AS5600_I2C);
 
-enum ControlMode { POSITION, FREE_SWING, FREE_SWING_SUSTAIN };
-ControlMode current_mode  = FREE_SWING;
-float       target_angle  = 0.0f;
-bool        sustain_enabled = false;
+// Motor 2 = Minute hand
+BLDCMotor motor2 = BLDCMotor(M2_PP);
+BLDCDriver3PWM driver2 = BLDCDriver3PWM(M2_PWM1, M2_PWM2, M2_PWM3, M2_EN);
+MagneticSensorMT6701SSI sensor2(SPI_CS);
 
-void calibrateCogging();
-bool loadCoggingMap();
-bool saveCoggingMap();
-float mapMean();
-void processSerialInput();
-void switchToPosition();
-void switchToFreeSwing();
-void toggleSustain();
-float computeAnticogging(float current_angle, bool in_motion);
-void printTelemetry(float angle, float comp, float sustain_v);
+ControlMode control_mode = DISABLED;
 
+void setControlMode(ControlMode next_mode) {
+  if (control_mode == next_mode) {
+    return;
+  }
+
+  control_mode = next_mode;
+
+  switch (control_mode) {
+    case DISABLED:
+      motor1.disable();
+      motor2.disable();
+      Serial.println("[MODE] DISABLED");
+      break;
+    case COMPENSATION_ONLY:
+      motor1.controller = MotionControlType::torque;
+      motor1.torque_controller = TorqueControlType::voltage;
+      motor1.target = 0.0f;
+      motor1.enable();
+
+      motor2.controller = MotionControlType::torque;
+      motor2.torque_controller = TorqueControlType::voltage;
+      motor2.target = 0.0f;
+      motor2.enable();
+      Serial.println("[MODE] COMPENSATION ONLY");
+      break;
+    case MINUTE_HAND_POSITION:
+      motor1.disable();
+      motor2.controller = MotionControlType::angle;
+      motor2.target = sensor2.getAngle();
+      motor2.enable();
+      Serial.println("[MODE] MINUTE HAND POSITION CONTROL");
+      break;
+    case HOUR_HAND_POSITION:
+      motor2.disable();
+      motor1.controller = MotionControlType::angle;
+      motor1.target = sensor1.getAngle();
+      motor1.enable();
+      Serial.println("[MODE] HOUR HAND POSITION CONTROL");
+      break;
+  }
+}
+
+void applyControlMode() {
+  switch (control_mode) {
+    case DISABLED:
+      break;
+    case COMPENSATION_ONLY:
+      motor1.move();
+      motor2.move();
+      break;
+    case MINUTE_HAND_POSITION:
+      motor2.move();
+      break;
+    case HOUR_HAND_POSITION:
+      motor1.move();
+      break;
+  }
+}
+
+void setTargetAngle(float raw_target_degrees) {
+  float normalized_target = fmod(raw_target_degrees, 360.0f);
+  if (normalized_target < 0.0f) {
+    normalized_target += 360.0f;
+  }
+
+  float target_radians = normalized_target * M_PI / 180.0f;
+  if (control_mode == MINUTE_HAND_POSITION) {
+    motor2.target = target_radians;
+    Serial.printf("[TARGET] Minute hand target set to %.2f degrees\n",
+                  normalized_target);
+  } else if (control_mode == HOUR_HAND_POSITION) {
+    motor1.target = target_radians;
+    Serial.printf("[TARGET] Hour hand target set to %.2f degrees\n",
+                  normalized_target);
+  } else {
+    Serial.println(
+        "[ERROR] Target angle can only be set in position control modes");
+  }
+}
+
+void controlModeParse() {
+  static char buf[32];
+  static int buf_len = 0;
+  char c = Serial.read();
+
+  if (c == '\n' || c == '\r') {
+    if (buf_len == 0) {
+      return;
+    }
+
+    buf[buf_len] = '\0';
+    float raw_target = 0.0f;
+
+    switch (buf[0]) {
+      case 'd':
+        setControlMode(DISABLED);
+        break;
+      case 'c':
+        setControlMode(COMPENSATION_ONLY);
+        break;
+      case 'm':
+        setControlMode(MINUTE_HAND_POSITION);
+        break;
+      case 'h':
+        setControlMode(HOUR_HAND_POSITION);
+        break;
+      case 't':
+        if (sscanf(buf + 1, "%f", &raw_target) == 1) {
+          setTargetAngle(raw_target);
+        } else {
+          Serial.println("[ERROR] Invalid target angle format");
+        }
+        break;
+      default:
+        Serial.println("[ERROR] Unknown command");
+        break;
+    }
+
+    buf_len = 0;
+    return;
+  }
+
+  if (buf_len < static_cast<int>(sizeof(buf)) - 1) {
+    buf[buf_len++] = c;
+    return;
+  }
+
+  buf_len = 0;
+  Serial.println("[ERROR] Command too long");
+}
 
 void setup() {
   Serial.begin(115200);
-  delay(200);
+  delay(2000);  // Wait for Serial to initialize
 
-  Wire.begin(S1_SDA, S1_SCL);
-
-  Wire.setClock(400000);
+  Wire.begin();
+  Wire.setClock(400000);  // 400kHz I2C clock speed to minimize blocking
 
   sensor1.init();
 
   driver1.voltage_power_supply = power_supply_voltage;
   driver1.init();
-  
+
   motor1.linkSensor(&sensor1);
   motor1.linkDriver(&driver1);
-  motor1.controller = MotionControlType::torque;
-  motor1.torque_controller = TorqueControlType::voltage;
+  motor1.controller = MotionControlType::angle;
   motor1.init();
   motor1.initFOC();
-
-  Serial.printf("[NVS] calibration_map size: %u bytes\n",
-                (unsigned)sizeof(calibration_map));
-  Serial.println("[NVS] Preferences diagnostics enabled");
-
-  if (!loadCoggingMap()) {
-    Serial.println("No valid cogging map found; running calibration");
-    calibrateCogging();
-    if (!saveCoggingMap()) {
-      Serial.println("Failed to save cogging map");
-    }
-  } else {
-    Serial.println("Loaded cogging map from NVS");
-  }
-
-  Serial.println("[BOOT] Dual-mode controller ready. Commands: P F S T<angle> C D");
-}
-
-void processSerialInput() {
-  static char buf[32];
-  static int buf_len = 0;
-
-  while (Serial.available()) {
-    char c = (char)Serial.read();
-    if (c == '\n' || c == '\r') {
-      if (buf_len > 0) {
-        char cmd = tolower(buf[0]);
-        switch (cmd) {
-          case 'p':
-            switchToPosition();
-            break;
-          case 'f':
-            switchToFreeSwing();
-            break;
-          case 's':
-            toggleSustain();
-            break;
-          case 'c':
-            calibrateCogging();
-            saveCoggingMap();
-            while (Serial.available()) Serial.read();
-            break;
-           case 'd':
-             debug_enabled = !debug_enabled;
-             Serial.printf("[DEBUG] %s\n", debug_enabled ? "ON" : "OFF");
-             break;
-          case 't': {
-            // Parse float from rest of buffer (after 't')
-            float raw_target = 0.0f;
-            if (buf_len > 1) {
-              raw_target = atof(buf + 1);
-            }
-            // Clamp to [0, 2π)
-            raw_target = fmod(raw_target, _2PI);
-            if (raw_target < 0) raw_target += _2PI;
-            // Nearest-angle to current shaft angle
-            float current = sensor1.getAngle();
-            float base = current - fmod(current, _2PI);
-            if (fmod(current, _2PI) < 0) base -= _2PI;
-            float c1 = base + raw_target;
-            float c2 = c1 + _2PI;
-            float c3 = c1 - _2PI;
-            target_angle = c1;
-            if (fabsf(c2 - current) < fabsf(target_angle - current)) target_angle = c2;
-            if (fabsf(c3 - current) < fabsf(target_angle - current)) target_angle = c3;
-            Serial.printf("[TARGET] %.4f\n", target_angle);
-            break;
-          }
-          default:
-            break; // Ignore unknown
-        }
-        buf_len = 0;
-      }
-    } else if (buf_len < (int)sizeof(buf) - 1) {
-      buf[buf_len++] = c;
-      buf[buf_len] = '\0';
-    }
-  }
-}
-
-void switchToPosition() {
   motor1.disable();
-  motor1.controller = MotionControlType::angle;
-  motor1.voltage_limit = voltage_limit_position;
-  motor1.PID_velocity.limit = voltage_limit_position;
-  motor1.enable();
-  target_angle = sensor1.getAngle();
-  current_mode = POSITION;
-  sustain_enabled = false;
-  Serial.println("[MODE] POSITION");
-}
 
-void switchToFreeSwing() {
-  motor1.disable();
-  motor1.controller = MotionControlType::torque;
-  motor1.torque_controller = TorqueControlType::voltage;
-  motor1.voltage_limit = voltage_limit_freeswing;
-  motor1.enable();
-  current_mode = FREE_SWING;
-  sustain_enabled = false;
-  Serial.println("[MODE] FREE_SWING");
-}
+  sensor2.init();
 
-void toggleSustain() {
-  if (current_mode == FREE_SWING || current_mode == FREE_SWING_SUSTAIN) {
-    sustain_enabled = !sustain_enabled;
-    current_mode = sustain_enabled ? FREE_SWING_SUSTAIN : FREE_SWING;
-    motor1.voltage_limit = sustain_enabled ? voltage_limit_sustain : voltage_limit_freeswing;
-    Serial.printf("[MODE] %s (sustain=%s)\n",
-      sustain_enabled ? "FREE_SWING_SUSTAIN" : "FREE_SWING",
-      sustain_enabled ? "ON" : "OFF");
-  } else {
-    Serial.println("[MODE] Sustain only available in FREE_SWING mode");
-  }
-}
+  driver2.voltage_power_supply = power_supply_voltage;
+  driver2.init();
 
-float computeAnticogging(float current_angle, bool in_motion) {
-  float map_position = current_angle / _2PI * MAP_SIZE;
-  int index0 = (int)map_position % MAP_SIZE;
-  int index1 = (index0 + 1) % MAP_SIZE;
-  float fraction = map_position - (int)map_position;
-  float map_value = calibration_map[index0] * (1.0f - fraction)
-                  + calibration_map[index1] * fraction;
-  if (in_motion && fabsf(map_value) >= cogging_deadband) {
-    return -map_value * cogging_gain;
-  }
-  return 0.0f;
-}
+  motor2.linkSensor(&sensor2);
+  motor2.linkDriver(&driver2);
+  motor2.controller = MotionControlType::angle;
+  motor2.init();
+  motor2.initFOC();
+  motor2.disable();
 
-void printTelemetry(float angle, float comp, float sustain_v) {
-  if (!debug_enabled) return;
-  unsigned long now = millis();
-  static unsigned long last_tel_ms = 0;
-  if (now - last_tel_ms < cogging_debug_interval_ms) return;
-  last_tel_ms = now;
-
-  const char* mode_str = "UNKNOWN";
-  switch (current_mode) {
-    case POSITION:           mode_str = "POSITION"; break;
-    case FREE_SWING:         mode_str = "FREE_SWING"; break;
-    case FREE_SWING_SUSTAIN: mode_str = "SUSTAIN"; break;
-  }
-  Serial.printf("[TEL] mode=%s angle=%.4f comp=%.4f sustain=%.4f\n",
-                mode_str, angle, comp, sustain_v);
+  Serial.println("Initialization complete");
+  Serial.println(
+      "Enter 'd' to disable motors, 'c' for compensation only, 'm' for minute "
+      "hand position control, 'h' for hour hand position control, and "
+      "'t<angle>' to set target angle in position control modes (e.g. t90 to "
+      "set target to 90 degrees)");
 }
 
 void loop() {
-  static float gate_prev_angle = 0.0f;
-  static unsigned long gate_prev_ms = 0;
-  static bool gate_initialized = false;
-  static bool gate_in_motion = false;
-  static float gate_last_delta = 0.0f;
-
-  sensor1.update();
-  processSerialInput();
-
-  float comp = 0.0f;
-  float sustain_v = 0.0f;
-  float tel_angle = 0.0f;
-  
   motor1.loopFOC();
-  switch (current_mode) {
-    case FREE_SWING: {
-      float current_angle = fmod(sensor1.getAngle(), _2PI);
-      if (current_angle < 0) current_angle += _2PI;
-      tel_angle = current_angle;
+  motor2.loopFOC();
 
-      unsigned long now_ms = millis();
-      bool in_motion = false;
-
-      if (!gate_initialized) {
-        gate_prev_angle = current_angle;
-        gate_prev_ms = now_ms;
-        gate_initialized = true;
-      } else if (now_ms - gate_prev_ms >= cogging_gate_window_ms) {
-        float delta = current_angle - gate_prev_angle;
-        if (delta > _PI) delta -= _2PI;
-        if (delta < -_PI) delta += _2PI;
-        gate_last_delta = delta;
-        gate_in_motion = fabsf(delta) >= cogging_angle_threshold;
-        gate_prev_angle = current_angle;
-        gate_prev_ms = now_ms;
-      }
-
-      in_motion = gate_in_motion;
-
-      comp = computeAnticogging(current_angle, in_motion);
-
-      motor1.move(comp);
-      break;
-    }
-    case POSITION:
-      tel_angle = sensor1.getAngle();
-      motor1.move(target_angle);
-      break;
-    case FREE_SWING_SUSTAIN: {
-      float current_angle = fmod(sensor1.getAngle(), _2PI);
-      if (current_angle < 0) current_angle += _2PI;
-      tel_angle = current_angle;
-
-      unsigned long now_ms = millis();
-      bool in_motion = false;
-
-      if (!gate_initialized) {
-        gate_prev_angle = current_angle;
-        gate_prev_ms = now_ms;
-        gate_initialized = true;
-      } else if (now_ms - gate_prev_ms >= cogging_gate_window_ms) {
-        float delta = current_angle - gate_prev_angle;
-        if (delta > _PI) delta -= _2PI;
-        if (delta < -_PI) delta += _2PI;
-        gate_last_delta = delta;
-        gate_in_motion = fabsf(delta) >= cogging_angle_threshold;
-        gate_prev_angle = current_angle;
-        gate_prev_ms = now_ms;
-      }
-      in_motion = gate_in_motion;
-
-      comp = computeAnticogging(current_angle, in_motion);
-
-      sustain_v = 0.0f;
-      if (in_motion) {
-        float direction = (gate_last_delta >= 0.0f) ? 1.0f : -1.0f;
-        sustain_v = sustain_sign * direction * sustain_torque;
-      }
-
-      motor1.move(comp + sustain_v);
-      break;
-    }
+  while (Serial.available()) {
+    controlModeParse();
   }
 
-  printTelemetry(tel_angle, comp, sustain_v);
-}
-
-void calibrateCogging() {
-  motor1.controller = MotionControlType::angle;
-  motor1.voltage_limit = voltage_limit_calibration;
-
-  for (int i = 0; i < MAP_SIZE; i++) {
-    calibration_map[i] = 0.0f;
-  }
-
-  for (int i = 0; i < MAP_SIZE; i++) {
-    float angle = (float)i / MAP_SIZE * _2PI;
-
-    for (int s = 0; s < settle_cycles; s++) {
-      motor1.move(angle);
-      motor1.loopFOC();
-    }
-
-    float accum = 0.0f;
-    for (int s = 0; s < sample_cycles; s++) {
-      motor1.move(angle);
-      motor1.loopFOC();
-      accum += motor1.voltage.q;
-    }
-
-    // Use mean measurement
-    calibration_map[i] = accum / sample_cycles;
-
-    if ((i % 256) == 0) {
-      Serial.printf("Calibrating: %d/%d\n", i, MAP_SIZE);
-    }
-  }
-
-  // Subtract DC Bias
-  float mean = mapMean();
-  for (int i = 0; i < MAP_SIZE; i++) {
-    calibration_map[i] -= mean;
-  }
-  Serial.println("Calibration complete");
-}
-
-float mapMean() {
-  float sum = 0.0f;
-  for (int i = 0; i < MAP_SIZE; i++) {
-    sum += calibration_map[i];
-  }
-  return sum / MAP_SIZE;
-}
-
-bool loadCoggingMap() {
-  if (!prefs.begin("cog_map", true)) {
-    Serial.println("[NVS] FAIL: prefs.begin('cog_map', readonly) failed");
-    return false;
-  }
-
-  size_t map_bytes = sizeof(calibration_map);
-  if (!prefs.isKey("map")) {
-    Serial.println("[NVS] LOAD: key 'map' does not exist");
-    prefs.end();
-    return false;
-  }
-
-  size_t stored = prefs.getBytesLength("map");
-  if (stored != map_bytes) {
-    Serial.printf("[NVS] LOAD: size mismatch - stored %u, expected %u\n",
-                  (unsigned)stored, (unsigned)map_bytes);
-    prefs.end();
-    return false;
-  }
-
-  size_t got = prefs.getBytes("map", calibration_map, map_bytes);
-  prefs.end();
-
-  if (got != map_bytes) {
-    Serial.printf("[NVS] LOAD: read %u of %u bytes\n",
-                  (unsigned)got, (unsigned)map_bytes);
-    return false;
-  }
-
-  Serial.printf("[NVS] LOAD: OK - %u bytes read\n", (unsigned)got);
-  return true;
-}
-
-bool saveCoggingMap() {
-  if (!prefs.begin("cog_map", false)) {
-    Serial.println("[NVS] FAIL: prefs.begin('cog_map', readwrite) failed");
-    return false;
-  }
-
-  size_t map_bytes = sizeof(calibration_map);
-  size_t written = prefs.putBytes("map", calibration_map, map_bytes);
-  prefs.end();
-
-  if (written != map_bytes) {
-    Serial.printf("[NVS] SAVE: wrote %u of %u bytes - FAILED\n",
-                  (unsigned)written, (unsigned)map_bytes);
-    return false;
-  }
-
-  Serial.printf("[NVS] SAVE: OK - %u bytes written\n", (unsigned)written);
-  return true;
+  applyControlMode();
 }
