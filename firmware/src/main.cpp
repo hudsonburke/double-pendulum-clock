@@ -83,17 +83,13 @@ void setControlMode(ControlMode next_mode) {
       break;
     case MINUTE_HAND_POSITION:
       motor2.controller = MotionControlType::angle;
-      motor2.voltage_limit =
-          3.0f;  // Limit voltage to prevent excessive speed during testing
       motor2.target = motor2.shaft_angle;
       motor2.enable();
       Serial.println("[MODE] MINUTE HAND POSITION CONTROL");
       break;
     case HOUR_HAND_POSITION:
-      motor1.controller = MotionControlType::velocity_openloop;
-      motor1.target = 1.0f;
-      // motor1.controller = MotionControlType::angle;
-      // motor1.target = motor1.shaft_angle;
+      motor1.controller = MotionControlType::angle;
+      motor1.target = motor1.shaft_angle;
       motor1.enable();
       Serial.println("[MODE] HOUR HAND POSITION CONTROL");
       break;
@@ -148,35 +144,44 @@ void setup() {
 
   Wire.begin();
   Wire.setClock(400000);  // 400kHz I2C clock speed to minimize blocking
-
+  Serial.println("Starting initialization...");
   sensor1.init();
+  Serial.println("Sensor 1 initialized");
 
   driver1.voltage_power_supply = power_supply_voltage;
   driver1.init();
+  Serial.println("Driver 1 initialized");
 
   motor1.linkSensor(&sensor1);
+  Serial.println("Motor 1 linked to sensor");
   motor1.linkDriver(&driver1);
+  Serial.println("Motor 1 linked to driver");
   motor1.controller = MotionControlType::angle;
   motor1.init();
   motor1.initFOC();
   motor1.disable();
-  motor1.useMonitoring(Serial);
-  motor1.monitor_downsample = 0;
+  // motor1.useMonitoring(Serial);
+  // motor1.monitor_downsample = 0;
+  Serial.println("Motor 1 initialized");
 
   sensor2.init();
+  Serial.println("Sensor 2 initialized");
 
   driver2.voltage_power_supply = power_supply_voltage;
   driver2.init();
+  Serial.println("Driver 2 initialized");
 
   motor2.linkSensor(&sensor2);
+  Serial.println("Motor 2 linked to sensor");
   motor2.linkDriver(&driver2);
+  Serial.println("Motor 2 linked to driver");
   motor2.controller = MotionControlType::angle;
   motor2.init();
   motor2.initFOC();
   motor2.disable();
-  motor2.useMonitoring(Serial);
-  motor2.monitor_downsample = 0;
-
+  // motor2.useMonitoring(Serial);
+  // motor2.monitor_downsample = 0;
+  Serial.println("Motor 2 initialized");
   command.add('1', doMotor1, "send command to motor 1 (hour hand)");
   command.add('2', doMotor2, "send command to motor 2 (minute hand)");
   command.add('d', onDisable, "disable motors");
@@ -197,6 +202,6 @@ void setup() {
 void loop() {
   command.run();
   applyControlMode();
-  motor1.monitor();
-  motor2.monitor();
+  // motor1.monitor();
+  // motor2.monitor();
 }
