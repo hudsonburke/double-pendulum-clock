@@ -19,6 +19,9 @@ enum ControlMode {
   HOUR_HAND_POSITION
 };
 
+void setControlMode(ControlMode next_mode);
+void setTargetAngle(float raw_target_degrees);
+
 // Motor 1 = Hour hand
 BLDCMotor motor1 = BLDCMotor(M1_PP);
 BLDCDriver3PWM driver1 = BLDCDriver3PWM(M1_PWM1, M1_PWM2, M1_PWM3, M1_EN);
@@ -29,7 +32,29 @@ BLDCMotor motor2 = BLDCMotor(M2_PP);
 BLDCDriver3PWM driver2 = BLDCDriver3PWM(M2_PWM1, M2_PWM2, M2_PWM3, M2_EN);
 MagneticSensorMT6701SSI sensor2(SPI_CS);
 
+Commander command = Commander(Serial);
+
 ControlMode control_mode = DISABLED;
+
+void doMotor1(char* cmd) { command.motor(&motor1, cmd); }
+void doMotor2(char* cmd) { command.motor(&motor2, cmd); }
+
+void onDisable(char*) { setControlMode(DISABLED); }
+
+void onCompensationOnly(char*) { setControlMode(COMPENSATION_ONLY); }
+
+void onMinuteHandPosition(char*) { setControlMode(MINUTE_HAND_POSITION); }
+
+void onHourHandPosition(char*) { setControlMode(HOUR_HAND_POSITION); }
+
+void onTargetAngle(char* cmd) {
+  float raw_target = 0.0f;
+  if (sscanf(cmd, "%f", &raw_target) == 1) {
+    setTargetAngle(raw_target);
+  } else {
+    Serial.println("[ERROR] Invalid target angle format");
+  }
+}
 
 void setControlMode(ControlMode next_mode) {
   if (control_mode == next_mode) {
@@ -57,16 +82,18 @@ void setControlMode(ControlMode next_mode) {
       Serial.println("[MODE] COMPENSATION ONLY");
       break;
     case MINUTE_HAND_POSITION:
-      motor1.disable();
       motor2.controller = MotionControlType::angle;
-      motor2.target = sensor2.getAngle();
+      motor2.voltage_limit =
+          3.0f;  // Limit voltage to prevent excessive speed during testing
+      motor2.target = motor2.shaft_angle;
       motor2.enable();
       Serial.println("[MODE] MINUTE HAND POSITION CONTROL");
       break;
     case HOUR_HAND_POSITION:
-      motor2.disable();
-      motor1.controller = MotionControlType::angle;
-      motor1.target = sensor1.getAngle();
+      motor1.controller = MotionControlType::velocity_openloop;
+      motor1.target = 1.0f;
+      // motor1.controller = MotionControlType::angle;
+      // motor1.target = motor1.shaft_angle;
       motor1.enable();
       Serial.println("[MODE] HOUR HAND POSITION CONTROL");
       break;
@@ -78,13 +105,17 @@ void applyControlMode() {
     case DISABLED:
       break;
     case COMPENSATION_ONLY:
+      motor1.loopFOC();
+      motor2.loopFOC();
       motor1.move();
       motor2.move();
       break;
     case MINUTE_HAND_POSITION:
+      motor2.loopFOC();
       motor2.move();
       break;
     case HOUR_HAND_POSITION:
+      motor1.loopFOC();
       motor1.move();
       break;
   }
@@ -111,57 +142,6 @@ void setTargetAngle(float raw_target_degrees) {
   }
 }
 
-void controlModeParse() {
-  static char buf[32];
-  static int buf_len = 0;
-  char c = Serial.read();
-
-  if (c == '\n' || c == '\r') {
-    if (buf_len == 0) {
-      return;
-    }
-
-    buf[buf_len] = '\0';
-    float raw_target = 0.0f;
-
-    switch (buf[0]) {
-      case 'd':
-        setControlMode(DISABLED);
-        break;
-      case 'c':
-        setControlMode(COMPENSATION_ONLY);
-        break;
-      case 'm':
-        setControlMode(MINUTE_HAND_POSITION);
-        break;
-      case 'h':
-        setControlMode(HOUR_HAND_POSITION);
-        break;
-      case 't':
-        if (sscanf(buf + 1, "%f", &raw_target) == 1) {
-          setTargetAngle(raw_target);
-        } else {
-          Serial.println("[ERROR] Invalid target angle format");
-        }
-        break;
-      default:
-        Serial.println("[ERROR] Unknown command");
-        break;
-    }
-
-    buf_len = 0;
-    return;
-  }
-
-  if (buf_len < static_cast<int>(sizeof(buf)) - 1) {
-    buf[buf_len++] = c;
-    return;
-  }
-
-  buf_len = 0;
-  Serial.println("[ERROR] Command too long");
-}
-
 void setup() {
   Serial.begin(115200);
   delay(2000);  // Wait for Serial to initialize
@@ -180,6 +160,8 @@ void setup() {
   motor1.init();
   motor1.initFOC();
   motor1.disable();
+  motor1.useMonitoring(Serial);
+  motor1.monitor_downsample = 0;
 
   sensor2.init();
 
@@ -192,6 +174,16 @@ void setup() {
   motor2.init();
   motor2.initFOC();
   motor2.disable();
+  motor2.useMonitoring(Serial);
+  motor2.monitor_downsample = 0;
+
+  command.add('1', doMotor1, "send command to motor 1 (hour hand)");
+  command.add('2', doMotor2, "send command to motor 2 (minute hand)");
+  command.add('d', onDisable, "disable motors");
+  command.add('c', onCompensationOnly, "compensation only");
+  command.add('m', onMinuteHandPosition, "minute hand position control");
+  command.add('h', onHourHandPosition, "hour hand position control");
+  command.add('t', onTargetAngle, "set target angle in degrees");
 
   Serial.println("Initialization complete");
   Serial.println(
@@ -199,15 +191,12 @@ void setup() {
       "hand position control, 'h' for hour hand position control, and "
       "'t<angle>' to set target angle in position control modes (e.g. t90 to "
       "set target to 90 degrees)");
+  Serial.println("Enter '?' to list Commander commands");
 }
 
 void loop() {
-  motor1.loopFOC();
-  motor2.loopFOC();
-
-  while (Serial.available()) {
-    controlModeParse();
-  }
-
+  command.run();
   applyControlMode();
+  motor1.monitor();
+  motor2.monitor();
 }
