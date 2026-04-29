@@ -170,10 +170,9 @@ void setup() {
   motor1.initFOC();
   motor1.disable();
   motor1.useMonitoring(Serial);
-  // motor1.monitor_downsample = 0;
+  // motor1.monitor_downsample = 100;
   Serial.println("Motor 1 initialized");
 
-  SPI.begin();
   sensor2.init();
   Serial.println("Sensor 2 initialized");
 
@@ -190,7 +189,8 @@ void setup() {
   motor2.initFOC();
   motor2.disable();
   motor2.useMonitoring(Serial);
-  // motor2.monitor_downsample = 0;
+  // motor2.monitor_downsample = 100;
+
   Serial.println("Motor 2 initialized");
   command.add('1', doMotor1, "send command to motor 1 (hour hand)");
   command.add('2', doMotor2, "send command to motor 2 (minute hand)");

@@ -65,12 +65,11 @@ uint16_t as5600_readRawAngle() {
     return 0;  // Error
   }
 
-  data[0] = Wire.read();  // High byte
-  data[1] = Wire.read();  // Low byte
+  data[0] = Wire.read();  // High byte (bits [11:8] in lower nibble)
+  data[1] = Wire.read();  // Low byte (bits [7:0])
 
-  // Combine into 16-bit value, shift right 4 for 12-bit alignment
-  uint16_t raw = ((uint16_t)data[0] << 8) | data[1];
-  raw = raw >> 4;  // Keep only 12 bits
+  // Combine: upper 4 bits from data[0], lower 8 bits from data[1]
+  uint16_t raw = ((uint16_t)(data[0] & 0x0F) << 8) | data[1];
 
   return raw;
 }
