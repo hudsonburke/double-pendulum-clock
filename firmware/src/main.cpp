@@ -21,6 +21,7 @@ enum ControlMode {
 
 void setControlMode(ControlMode next_mode);
 void setTargetAngle(float raw_target_degrees);
+void onSensorDebug(char* cmd);
 
 // Motor 1 = Hour hand
 BLDCMotor motor1 = BLDCMotor(M1_PP);
@@ -34,7 +35,10 @@ MagneticSensorMT6701SSI sensor2(SPI_CS);
 
 Commander command = Commander(Serial);
 
-ControlMode control_mode = DISABLED;
+ControlMode control_mode = COMPENSATION_ONLY;
+bool sensor_debug_enabled = false;
+unsigned long last_sensor_debug_ms = 0;
+constexpr unsigned long sensor_debug_interval_ms = 200;
 
 void doMotor1(char* cmd) { command.motor(&motor1, cmd); }
 void doMotor2(char* cmd) { command.motor(&motor2, cmd); }
@@ -47,12 +51,21 @@ void onMinuteHandPosition(char*) { setControlMode(MINUTE_HAND_POSITION); }
 
 void onHourHandPosition(char*) { setControlMode(HOUR_HAND_POSITION); }
 
-void onTargetAngle(char* cmd) {
-  float raw_target = 0.0f;
-  if (sscanf(cmd, "%f", &raw_target) == 1) {
-    setTargetAngle(raw_target);
+void onTargetAngle(char* cmd) { setTargetAngle(atof(cmd)); }
+
+void onSensorDebug(char* cmd) {
+  if (cmd[0] == '\0') {
+    sensor_debug_enabled = !sensor_debug_enabled;
   } else {
-    Serial.println("[ERROR] Invalid target angle format");
+    sensor_debug_enabled = atoi(cmd) != 0;
+  }
+
+  last_sensor_debug_ms = 0;
+  Serial.printf("[DEBUG] Sensor debug %s\n",
+                sensor_debug_enabled ? "ENABLED" : "DISABLED");
+  if (sensor_debug_enabled) {
+    Serial.println(
+        "[DEBUG] Streaming sensor angles every 200ms (use s0 to stop)");
   }
 }
 
@@ -101,17 +114,13 @@ void applyControlMode() {
     case DISABLED:
       break;
     case COMPENSATION_ONLY:
-      motor1.loopFOC();
-      motor2.loopFOC();
       motor1.move();
       motor2.move();
       break;
     case MINUTE_HAND_POSITION:
-      motor2.loopFOC();
       motor2.move();
       break;
     case HOUR_HAND_POSITION:
-      motor1.loopFOC();
       motor1.move();
       break;
   }
@@ -160,10 +169,11 @@ void setup() {
   motor1.init();
   motor1.initFOC();
   motor1.disable();
-  // motor1.useMonitoring(Serial);
+  motor1.useMonitoring(Serial);
   // motor1.monitor_downsample = 0;
   Serial.println("Motor 1 initialized");
 
+  SPI.begin();
   sensor2.init();
   Serial.println("Sensor 2 initialized");
 
@@ -179,7 +189,7 @@ void setup() {
   motor2.init();
   motor2.initFOC();
   motor2.disable();
-  // motor2.useMonitoring(Serial);
+  motor2.useMonitoring(Serial);
   // motor2.monitor_downsample = 0;
   Serial.println("Motor 2 initialized");
   command.add('1', doMotor1, "send command to motor 1 (hour hand)");
@@ -189,6 +199,7 @@ void setup() {
   command.add('m', onMinuteHandPosition, "minute hand position control");
   command.add('h', onHourHandPosition, "hour hand position control");
   command.add('t', onTargetAngle, "set target angle in degrees");
+  command.add('s', onSensorDebug, "toggle sensor debug stream (s0/s1)");
 
   Serial.println("Initialization complete");
   Serial.println(
@@ -197,11 +208,21 @@ void setup() {
       "'t<angle>' to set target angle in position control modes (e.g. t90 to "
       "set target to 90 degrees)");
   Serial.println("Enter '?' to list Commander commands");
+  Serial.println("Enter 's' to toggle sensor debug streaming");
 }
 
 void loop() {
   command.run();
+  motor1.loopFOC();
+  motor2.loopFOC();
+  motor1.monitor();
+  motor2.monitor();
   applyControlMode();
-  // motor1.monitor();
-  // motor2.monitor();
+
+  if (sensor_debug_enabled &&
+      millis() - last_sensor_debug_ms >= sensor_debug_interval_ms) {
+    last_sensor_debug_ms = millis();
+    Serial.printf("SDBG\t%.2f\t%.2f\n", sensor1.getAngle() * 180.0f / M_PI,
+                  sensor2.getAngle() * 180.0f / M_PI);
+  }
 }
