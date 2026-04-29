@@ -169,10 +169,13 @@ void setup() {
   motor1.init();
   motor1.initFOC();
   motor1.disable();
-  motor1.useMonitoring(Serial);
-  // motor1.monitor_downsample = 100;
+  if (DEBUG_ENABLED) {
+    motor1.useMonitoring(Serial);
+    motor1.monitor_downsample = 100;
+  }
   Serial.println("Motor 1 initialized");
 
+  SPI.begin();
   sensor2.init();
   Serial.println("Sensor 2 initialized");
 
@@ -188,8 +191,10 @@ void setup() {
   motor2.init();
   motor2.initFOC();
   motor2.disable();
-  motor2.useMonitoring(Serial);
-  // motor2.monitor_downsample = 100;
+  if (DEBUG_ENABLED) {
+    motor2.useMonitoring(Serial);
+    motor2.monitor_downsample = 100;
+  }
 
   Serial.println("Motor 2 initialized");
   command.add('1', doMotor1, "send command to motor 1 (hour hand)");
@@ -206,7 +211,7 @@ void setup() {
       "Enter 'd' to disable motors, 'c' for compensation only, 'm' for minute "
       "hand position control, 'h' for hour hand position control, and "
       "'t<angle>' to set target angle in position control modes (e.g. t90 to "
-      "set target to 90 degrees)");
+      "set target to 90 .degrees)");
   Serial.println("Enter '?' to list Commander commands");
   Serial.println("Enter 's' to toggle sensor debug streaming");
 }
@@ -215,8 +220,10 @@ void loop() {
   command.run();
   motor1.loopFOC();
   motor2.loopFOC();
-  motor1.monitor();
-  motor2.monitor();
+  if (DEBUG_ENABLED) {
+    motor1.monitor();
+    motor2.monitor();
+  }
   applyControlMode();
 
   if (sensor_debug_enabled &&
